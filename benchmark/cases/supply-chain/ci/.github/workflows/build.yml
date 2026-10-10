@@ -1,0 +1,15 @@
+name: build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4  # expect[SUP007]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # safe[SUP007] v4.4.0
+      - uses: docker/build-push-action@v6  # expect[SUP007]
+      - uses: actions/setup-node@main  # expect[SUP007] a branch moves on every commit
+      - uses: ./.github/actions/local-setup  # safe[SUP007] code in this repo
+      - run: curl -fsSL https://get.example.dev/install.sh | sh  # expect[SUP006]
+      - run: curl -fsSL https://get.example.dev/x.sh | sudo bash  # expect[SUP006]
+      - run: wget -qO- https://get.example.dev/x.sh | bash -s -- --yes  # expect[SUP006]
+      - run: curl -fsSLO https://get.example.dev/install.sh && sha256sum -c install.sh.sha256 && sh install.sh  # safe[SUP006]

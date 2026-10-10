@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(*)",
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(npm test:*)",
+      "Bash(curl https://api.example.com/health)",
+      "Read"
+    ]
+  },
+  "enableAllProjectMcpServers": true
+}

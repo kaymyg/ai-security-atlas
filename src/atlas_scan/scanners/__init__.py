@@ -28,15 +28,19 @@ class Scanner:
         return []
 
 
+COMMENT_LINE = re.compile(r"^\s*(?:#|//|/\*|\*|<!--)")
+
+
 class PatternRule:
     """A rule that fires when a regex matches inside certain file types."""
 
     def __init__(self, rule: Rule, pattern: str, suffixes: set[str], flags: int = 0,
-                 unless: str | None = None):
+                 unless: str | None = None, in_comments: bool = False):
         self.rule = rule
         self.regex = re.compile(pattern, flags)
         self.suffixes = suffixes
         self.unless = re.compile(unless, flags) if unless else None
+        self.in_comments = in_comments  # most rules are about code, so comment lines are skipped
 
     def matches(self, src: SourceFile) -> Iterable[Finding]:
         if self.suffixes and src.suffix not in self.suffixes:
@@ -45,6 +49,8 @@ class PatternRule:
             line, col = src.line_of(m.start())
             text = src.lines[line - 1] if line <= len(src.lines) else ""
             if self.unless and self.unless.search(text):
+                continue
+            if not self.in_comments and COMMENT_LINE.match(text):
                 continue
             yield Finding(rule=self.rule, path=src.path, line=line, column=col,
                           snippet=src.snippet(line))

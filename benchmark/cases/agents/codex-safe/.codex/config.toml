@@ -1,0 +1,2 @@
+approval_policy = "on-request"  # safe[AGT010]
+sandbox_mode = "workspace-write"  # safe[AGT010]

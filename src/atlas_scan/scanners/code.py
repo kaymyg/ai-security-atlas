@@ -51,7 +51,7 @@ _rules: list[PatternRule] = [
       r"os\.(?:system|popen)\s*\(\s*(?:f[\"']|[^)\n]*(?:\+|%|\.format\())", PY),
     R(Rule("VIBE013", "SQL query built with string formatting", Severity.HIGH, C,
            "Use parameterised queries: cursor.execute(\"... WHERE id = %s\", (id,)).", "CWE-89"),
-      r"\.execute(?:many)?\s*\(\s*(?:f[\"']|[\"'][^\"'\n]*[\"']\s*(?:%|\+|\.format))", PY),
+      r"\.execute(?:many)?\s*\(\s*(?:text\(\s*)?(?:f[\"']|(?:\"[^\"\n]*\"|'[^'\n]*')\s*(?:%|\+|\.format))", PY),
     R(Rule("VIBE014", "Unsafe deserialisation (pickle)", Severity.MEDIUM, C,
            "Don't unpickle data you didn't create. Use JSON for anything from outside.", "CWE-502"),
       r"\b(?:pickle|cPickle|dill|joblib)\.loads?\s*\(", PY),
@@ -60,10 +60,10 @@ _rules: list[PatternRule] = [
       r"\byaml\.load\s*\(", PY, unless=r"Safe|BaseLoader|safe_load"),
     R(Rule("VIBE016", "TLS certificate verification disabled", Severity.HIGH, C,
            "Remove verify=False. Point at a CA bundle if you use a private CA.", "CWE-295"),
-      r"verify\s*=\s*False", PY),
+      r"verify\s*=\s*False|ssl\.CERT_NONE\b|check_hostname\s*=\s*False|_create_unverified_context\(", PY),
     R(Rule("VIBE017", "Debug mode enabled in web app", Severity.MEDIUM, C,
            "Read debug from an env var and keep it off in production.", "CWE-489"),
-      r"\.run\([^)\n]*debug\s*=\s*True|^\s*DEBUG\s*=\s*True\b", PY, re.M),
+      r"\.run\([^)\n]*debug\s*=\s*True|^[ \t]*DEBUG\s*=\s*True\b", PY, re.M),
     R(Rule("VIBE018", "File path built from request data", Severity.HIGH, C,
            "Resolve the path and check it stays inside an allowed folder (or use werkzeug.secure_filename).",
            "CWE-22"),
@@ -76,24 +76,29 @@ _rules: list[PatternRule] = [
     # ---- JavaScript / TypeScript ----
     R(Rule("VIBE030", "eval() or new Function()", Severity.HIGH, C,
            "Avoid eval; use JSON.parse for data or a lookup table for behaviour.", "CWE-95"),
-      r"(?<![.\w])eval\s*\(|\bnew\s+Function\s*\(", JS, unless=rf"(?i){LLM_WORDS}"),
+      r"(?<![.\w])eval\s*\(|\bnew\s+Function\s*\(|\bset(?:Timeout|Interval)\s*\(\s*[\"'`]", JS,
+      unless=rf"(?i){LLM_WORDS}"),
     R(Rule("VIBE031", "Raw HTML injection (XSS risk)", Severity.MEDIUM, C,
            "Render text, or sanitise with DOMPurify before injecting HTML.", "CWE-79"),
-      r"dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=(?!=)|document\.write\s*\(|v-html\s*=",
+      r"dangerouslySetInnerHTML|\.(?:inner|outer)HTML\s*=(?!=)(?!\s*(?:\"\"|''|``))|document\.write\s*\(|"
+      r"v-html\s*=|\.insertAdjacentHTML\s*\(",
       JS | {".html"}, unless=r"(?i)DOMPurify|sanitize"),
     R(Rule("VIBE032", "child_process command built from a string", Severity.HIGH, C,
            "Use execFile/spawn with an argument array.", "CWE-78"),
       r"\bexec(?:Sync)?\s*\(\s*(?:`[^`\n]*\$\{|[^)\n]*\+\s*\w)", JS),
     R(Rule("VIBE033", "SQL built with a template literal", Severity.HIGH, C,
            "Use placeholders ($1, ?) or your ORM's tagged template helper.", "CWE-89"),
-      r"\.(?:query|execute|raw)\s*\(\s*`[^`]*\$\{|\$(?:queryRaw|executeRaw)Unsafe\s*\(", JS),
+      r"\.(?:query|execute|raw)\s*\(\s*`[^`]*\$\{|\$(?:queryRaw|executeRaw)Unsafe\s*\(|"
+      r"\.(?:query|execute|raw)\s*\(\s*(?:\"[^\"\n]*\"|'[^'\n]*')\s*\+", JS),
     R(Rule("VIBE034", "TLS certificate verification disabled", Severity.HIGH, C,
            "Remove rejectUnauthorized:false / NODE_TLS_REJECT_UNAUTHORIZED=0.", "CWE-295"),
       r"rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*[\"']?0", ALL),
     R(Rule("VIBE035", "Server secret exposed to the browser bundle", Severity.HIGH, C,
            "Variables with NEXT_PUBLIC_/VITE_/REACT_APP_/EXPO_PUBLIC_ are shipped to every visitor. Keep secrets "
            "server-side.", "CWE-200"),
-      r"\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC|PUBLIC)_\w*(?:SECRET|SERVICE_ROLE|PRIVATE|ADMIN_KEY|DB_PASS)\w*",
+      r"\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC|PUBLIC)_\w*(?:SECRET|SERVICE_ROLE|PRIVATE|ADMIN_KEY|DB_PASS)\w*|"
+      r"\b(?:NEXT_PUBLIC|VITE|REACT_APP|EXPO_PUBLIC|PUBLIC)_\w*(?:OPENAI|ANTHROPIC|GROQ|MISTRAL|COHERE|REPLICATE|"
+      r"HUGGING_?FACE|ELEVENLABS|DEEPSEEK|GEMINI)\w*(?:KEY|TOKEN)\w*",
       ALL),
 
     # ---- Cross-language ----
@@ -108,7 +113,8 @@ _rules: list[PatternRule] = [
     R(Rule("VIBE052", "CORS allows any origin", Severity.MEDIUM, C,
            "List the exact origins that may call your API.", "CWE-942"),
       r"(?i)Access-Control-Allow-Origin[\"']?\s*[,:]\s*[\"']\*[\"']|origins?\s*[:=]\s*\[?\s*[\"']\*[\"']|"
-      r"allow_origins\s*=\s*\[\s*[\"']\*[\"']",
+      r"allow_origins\s*=\s*\[\s*[\"']\*[\"']|"
+      r"\bcors\(\s*\)|\bCORS\(\s*app\s*\)",  # express cors() and Flask-CORS CORS(app) default to "*"
       PY | JS),
     R(Rule("VIBE053", "CSRF protection disabled", Severity.MEDIUM, C,
            "Keep CSRF protection on for any cookie-authenticated endpoint.", "CWE-352"),
@@ -118,7 +124,7 @@ _rules: list[PatternRule] = [
            "CWE-1188"),
       r"(?i)(?:#|//|/\*)\s*(?:TODO|FIXME|XXX|HACK)\b[^\n]*\b(?:auth\w*|permission|access control|"
       r"sanitiz\w*|validat\w*|rate.?limit|security|csrf|escape|encrypt\w*)",
-      CODE),
+      CODE, in_comments=True),
 ]
 
 

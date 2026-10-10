@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Bash(npm test:*)",
+      "Bash(git status)"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(curl:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": false
+}

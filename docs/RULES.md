@@ -200,7 +200,7 @@ Every rule is a pattern check, so each one can miss cases and flag safe code. Se
 | [SEC009](#sec009) | critical | vulnerability | Private key block |
 | [SEC010](#sec010) | high | vulnerability | Hugging Face token |
 | [SEC011](#sec011) | medium | vulnerability | JSON Web Token |
-| [SEC012](#sec012) | high | vulnerability | Database URL with embedded password |
+| [SEC012](#sec012) | high | vulnerability | Password embedded in a connection URL |
 | [SEC013](#sec013) | critical | vulnerability | Blockchain wallet private key |
 | [SEC020](#sec020) | medium | vulnerability | Hard-coded secret in assignment |
 | [SEC030](#sec030) | medium | misconfiguration | Environment file with values present in the repo |
@@ -273,7 +273,7 @@ Every rule is a pattern check, so each one can miss cases and flag safe code. Se
 
 ### SEC012
 
-**Database URL with embedded password** · severity: high · kind: vulnerability · CWE-798
+**Password embedded in a connection URL** · severity: high · kind: vulnerability · CWE-798
 
 **Fix:** Revoke the key, remove it from code, and load it from an environment variable or secret manager.
 

@@ -1,0 +1,9 @@
+# pull_request from forks runs with a read-only token and no secrets: not the same risk.
+name: AI review
+on:
+  pull_request:
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - run: claude -p "review this PR"  # safe[AGT020]

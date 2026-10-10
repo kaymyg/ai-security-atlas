@@ -1,0 +1,12 @@
+# Anyone who can comment on an issue writes the prompt for an agent holding a write token.
+name: AI triage
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567  # expect[AGT020] safe[SUP007]

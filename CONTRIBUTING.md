@@ -18,7 +18,7 @@ pytest -q
 ## Before you open a pull request
 
 - `pytest -q` passes.
-- If you changed rules: `python tools/gen_rules_doc.py`.
+- If you changed rules: `python tools/gen_rules_doc.py`, add [benchmark cases](benchmark/README.md#adding-a-case) for the new behaviour (an unsafe line *and* a safe look-alike), then `python benchmark/run.py --write`.
 - `atlas scan .` is still clean.
 - If you changed what a rule can or can't detect, update [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
 - New claims in the threat map need a numbered source with type, publication date, what you verified and when.

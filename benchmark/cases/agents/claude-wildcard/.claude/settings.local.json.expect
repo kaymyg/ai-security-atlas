@@ -1,0 +1,2 @@
+# A bare "Bash" entry allows every shell command.
+expect[AGT011] "Bash"

@@ -1,0 +1,7 @@
+safe[AGT010] "defaultMode"
+safe[AGT011,AGT012] "Bash(npm test:*)"
+safe[AGT012] "Bash(git status)"
+# Risky commands listed under "deny" are the opposite of a risk.
+safe[AGT012] "Bash(rm:*)"
+safe[AGT012] "Bash(curl:*)"
+safe[AGT013] "enableAllProjectMcpServers"

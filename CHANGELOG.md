@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.3.0 (2026-10-10): accuracy benchmark
+
+### Added
+- **Accuracy benchmark** (`benchmark/`): 300+ hand-labelled lines across all five categories. Every rule has cases; per-rule precision and recall are published in `benchmark/RESULTS.md`. The test suite fails on any unexplained change.
+- The v0.2.0 scanner graded on the same cases is kept in `benchmark/history/` for comparison: precision 88% → 94%, recall 85% → 94%, false alarms 23 → 12, misses 31 → 13.
+
+### Fixed (bugs the benchmark found)
+- Findings in MCP configs could point at the wrong line (`"/"` matched an earlier `@scope/package` line).
+- `DEBUG = True` was reported on the blank line above it.
+- A `#` comment containing `]` inside a `pyproject.toml` dependency list stopped parsing, hiding the remaining dependencies.
+- Git dependencies pinned to a commit SHA were flagged by SUP005, whose own fix recommends exactly that.
+- Java's `RSA/ECB/OAEP…` (a naming quirk; RSA has no ECB mode) was reported as ECB.
+- Importing a crypto class counted as using it.
+- Emoji built with zero-width joiners (e.g. "woman technologist") were flagged in agent rules files.
+- `el.innerHTML = ""` (clearing an element) was flagged as XSS.
+- Code rules no longer fire on lines that are entirely comments.
+- `examples/make_demo_secrets.py` (since v0.1.0) and the new benchmark runner contained literal bidi control characters instead of escapes. They're now built with `chr()`, and a new test fails if any tracked file contains invisible characters.
+
+### Improved coverage
+- SQL: `"..." + name` concatenation with mixed quotes, SQLAlchemy `text(f"...")`, JS string concatenation in `query()`.
+- TLS: `ssl.CERT_NONE`, `check_hostname = False`, `_create_unverified_context()`.
+- JS: `setTimeout("code")`, `insertAdjacentHTML`, `cors()` with no options; Python: Flask-CORS `CORS(app)` default.
+- Public-prefixed AI provider keys, e.g. an OpenAI key behind a `VITE_` prefix (VIBE035).
+- Passwords in `https`, `git`, `ssh`, `ftp` and `smtp` URLs (SEC012, renamed "Password embedded in a connection URL").
+- Type-annotated secrets: `webhook_secret: str = "..."` (SEC020).
+- Go `des`/`rc4` ciphers; Java's bare `Cipher.getInstance("AES")`, which defaults to ECB.
+- Agent CI triggers written as `on: [issue_comment, ...]`.
+
+### Changed
+- AGT012 only reports risky `Bash(...)` permissions that use a wildcard or a bare command name.
+
 ## v0.2.0 (2026-10-10): hardening release
 
 Driven by an external repository audit. Accuracy and safety before new features.

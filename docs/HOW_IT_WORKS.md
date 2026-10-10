@@ -88,6 +88,15 @@ Say you want to flag Python's `tempfile.mktemp()` (it has a race condition).
 
 Always test the safe version too. A rule that fires on safe code teaches people to ignore the tool.
 
+## 6. `benchmark/`: measuring accuracy
+
+Unit tests check that the code does what you meant. The benchmark checks whether what you meant is *right*: does a rule catch real unsafe code and leave safe look-alikes alone? Each case line is labelled with the truth (`expect`/`safe`), or with a known scanner mistake (`miss`/`noisy`), and the runner turns that into precision and recall per rule. See [benchmark/README.md](../benchmark/README.md).
+
+Two lessons from building it:
+
+- **Write the truth before you run the scanner.** Labels written after seeing results drift towards whatever the tool does.
+- **Your test data can lie to you.** Three times, a note written next to a label contained the keyword a rule was looking for ("user", "secp256k1", "exfiltration"), making a miss look like a catch. The fix wasn't to be more careful but to make it impossible: the runner now strips notes before scanning.
+
 ## Dogfooding and outside review
 
 CI scans this repo with its own GitHub Action. The first run found a real bug: the `pyproject.toml` parser treated `authors` and `keywords` lists as dependencies.

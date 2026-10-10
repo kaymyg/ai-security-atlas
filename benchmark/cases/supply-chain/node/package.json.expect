@@ -1,0 +1,14 @@
+expect[SUP001] "expresss"
+expect[SUP001] "lodahs"
+# cross-env's name was famously squatted as "crossenv" in 2017.
+expect[SUP001] "crossenv"
+# Imitates the real @anthropic-ai/sdk by dropping "-ai".
+miss[SUP001] "@anthropic/sdk"
+safe[SUP001,SUP004] "react"
+safe[SUP001] "@types/react"
+safe[SUP001] "chalk"
+expect[SUP004] "axios"
+expect[SUP004] "next"
+expect[SUP005] "left-pad-ai"
+# Pinned to a full commit: the fix the rule itself recommends.
+safe[SUP005] "internal-ui"

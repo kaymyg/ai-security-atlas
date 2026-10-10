@@ -1,0 +1,8 @@
+# Same risk, written with the short list form of `on:`.
+name: AI review
+on: [pull_request_target, issue_comment]
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - run: codex exec "review this PR"  # expect[AGT020]

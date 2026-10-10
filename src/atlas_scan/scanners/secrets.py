@@ -48,8 +48,9 @@ PATTERNS: list[tuple[Rule, re.Pattern, int]] = [
     (_r("SEC011", "JSON Web Token", Severity.MEDIUM,
         "Don't commit real JWTs; they often stay valid long after you forget them."),
      re.compile(r"\b(eyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,})"), 1),
-    (_r("SEC012", "Database URL with embedded password", Severity.HIGH),
-     re.compile(r"\b((?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqps?)://[^:\s/@\"']+:([^@\s/\"']{3,})@)"), 2),
+    (_r("SEC012", "Password embedded in a connection URL", Severity.HIGH),
+     re.compile(r"\b((?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|rediss|amqps?|https?|ftps?|git|ssh|"
+                r"smtps?)://[^:\s/@\"']+:([^@\s/\"']{3,})@)"), 2),
     (_r("SEC013", "Blockchain wallet private key", Severity.CRITICAL,
         "Move the key to a hardware wallet, KMS or secret manager and drain/rotate the wallet if it was ever pushed."),
      re.compile(r"(?i)(?:priv(?:ate)?_?key|secret_?key|signer|wallet_?key|pk)\s*[:=]\s*[\"']?(0x[a-fA-F0-9]{64})\b"), 1),
@@ -59,7 +60,7 @@ GENERIC = _r("SEC020", "Hard-coded secret in assignment", Severity.MEDIUM)
 GENERIC_RE = re.compile(
     r"""(?ix)
     \b([a-z0-9_.\-]*(?:api[_\-]?key|secret|token|passw(?:or)?d|pwd|auth[_\-]?key|client[_\-]?secret|access[_\-]?key|private[_\-]?key))
-    ["']?\s*[:=]>?\s*
+    ["']?\s*(?:[:=]>?|:\s*[a-z_][\w.\[\]]*\s*=)\s*     # value, or `name: str = value`
     (["'])([^"'\s]{12,200})\2
     """
 )

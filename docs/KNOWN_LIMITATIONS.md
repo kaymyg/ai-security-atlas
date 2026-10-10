@@ -8,9 +8,11 @@ Every rule is a readable pattern match on one file at a time, plus JSON parsing 
 
 - **No data-flow analysis.** It sees `cursor.execute(f"... {uid}")` but can't tell whether `uid` came from a user or a constant. It will miss injection that passes through helper functions, ORMs or other files.
 - **No context.** A safe `eval` on a hard-coded constant inside a test may still be flagged; an unsafe one written in an unusual style may be missed.
+- **One line at a time.** A call split across lines is judged by its first line, e.g. `yaml.load(` with `Loader=SafeLoader` on the next line is still flagged.
+- **Comments.** Code rules skip lines that are entirely comments. Text in a *trailing* comment is still read, and crypto and agent rules read comments too.
 - **A clean scan proves nothing.** It means none of these patterns matched, not that the code is secure.
 
-There's no benchmark yet: per-rule accuracy hasn't been measured. Building a labelled test corpus is the next milestone (see [README roadmap](../README.md#roadmap)).
+Per-rule accuracy is measured by the [benchmark](../benchmark/RESULTS.md) (overall 94% precision and 94% recall on deliberately tricky cases). Every known miss and false alarm is a labelled case there, so you can see exactly what slips through. The numbers describe those cases, not every codebase.
 
 ## Coverage by language and file type
 
@@ -28,8 +30,9 @@ There's no benchmark yet: per-rule accuracy hasn't been measured. Building a lab
 ### Secrets (`SEC*`)
 
 - **Scans current files only, not git history.** A key deleted in an earlier commit is still in history. Use a history-aware scanner (or GitHub's secret scanning) for that.
-- **Recognised formats:** AWS access key IDs, GitHub, Anthropic, OpenAI, Google API, Stripe live, Slack and Hugging Face tokens, JWTs, database URLs with passwords, PEM private-key headers, and `0x`-prefixed 64-hex wallet keys assigned to key-like names. Anything else is only caught by the generic high-entropy assignment rule (SEC020), which needs a key-like variable name.
-- **Not detected:** base64- or URL-encoded secrets, secrets split across lines or string concatenation, passwords that aren't assigned to an obviously named variable, low-entropy (guessable) passwords.
+- **Recognised formats:** AWS access key IDs, GitHub, Anthropic, OpenAI, Google API, Stripe live, Slack and Hugging Face tokens, JWTs, passwords inside connection URLs (database, `https`, `git`, `ssh`, `ftp`, `smtp`), PEM private-key headers, and `0x`-prefixed 64-hex wallet keys assigned to key-like names. Anything else is only caught by the generic high-entropy assignment rule (SEC020), which needs a key-like variable name.
+- **Not detected:** base64- or URL-encoded secrets, secrets split across lines or string concatenation, passwords that aren't assigned to an obviously named variable, low-entropy (guessable) passwords like `Summer2024!`.
+- **False alarms:** public sample tokens (such as jwt.io's example JWT) and documentation placeholders like `postgres://user:password@localhost` are reported.
 - **No live validation, by design.** Checking whether a key works means sending it to the provider. A scanner that transmits every secret it finds is a risk of its own, so `atlas` never does.
 - Reports always mask secrets (first 4 characters + `…******`), in every output format, including suppressed findings and error messages. Tests enforce this.
 
@@ -47,6 +50,10 @@ Supported formats:
 | GitHub Actions | Known agent actions/CLIs triggered by issue/PR comment events without an author check |
 | Rules files | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursorrules`, `.windsurfrules`, `.clinerules`, `copilot-instructions.md`, `.cursor/rules/*`, `.github/instructions/*`, `.claude/agents|commands/*` |
 
+Rules-file checks (AGT030) are keyword-based. Harmless wording such as "ignore previous instructions from older versions of this file" or "we protect against data exfiltration" can trigger them, and an attack phrased without the known keywords can be missed.
+
+`Bash(...)` allow rules are only reported when they hand over a whole risky command with a wildcard (`curl:*`, `rm *`) or as a bare name; a fully spelled-out command is treated as a reviewed, narrow permission.
+
 **Not covered:** YAML-based MCP configs, Cursor/Windsurf/Gemini permission settings, agent settings stored outside the repo (user home folder), and anything about what an agent actually does at run time. A risky setting shows potential exposure, not that an agent has misbehaved, and a clean result doesn't prove an agent's effective permissions are safe.
 
 Config formats change often. Rules match the formats as of October 2026.
@@ -61,7 +68,8 @@ Config formats change often. Rules match the formats as of October 2026.
 
 - **Manifests read:** `requirements*.txt`/`.in`, `constraints.txt`, `pyproject.toml` (PEP 621 and Poetry), `package.json`.
 - **Not read:** lock files, `Pipfile`, `setup.py`/`setup.cfg`, `go.mod`, `Cargo.toml`, `Gemfile`, `composer.json`, Maven/Gradle files. Transitive dependencies aren't checked.
-- **Typosquats (SUP001)** compare names against about 140 popular packages per ecosystem using edit distance. A legitimate package with a similar name can be flagged; typos of less popular packages are missed.
+- **Typosquats (SUP001)** compare names against about 140 popular packages per ecosystem using edit distance (up to 2 edits). A legitimate package with a similar name can be flagged (e.g. `attr` vs `attrs`); imitations further away are missed (e.g. `@anthropic/sdk` imitating `@anthropic-ai/sdk`).
+- Git/URL dependencies pinned to a full 40-character commit SHA are not reported.
 - **Online checks (`--online`)** query PyPI and npm only. A missing package (SUP002) is reported only on a definite "not found". Timeouts, rate limits and outages are reported as **unknown** (SUP008), never as missing, and after three failures in a row the scanner stops asking. A recently published package (SUP003) is a prompt to check the publisher, not evidence of malice.
 - **No known-vulnerability (CVE) lookups yet.** Use `pip-audit`, `npm audit` or OSV-Scanner for that.
 

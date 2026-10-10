@@ -1,0 +1,13 @@
+# Same agent, but only repository members and owners can trigger it.
+name: AI triage
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: read
+jobs:
+  triage:
+    if: contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: anthropics/claude-code-action@0123456789abcdef0123456789abcdef01234567  # safe[AGT020,SUP007]

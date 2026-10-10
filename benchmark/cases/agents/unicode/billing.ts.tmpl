@@ -1,0 +1,9 @@
+// "Trojan Source": the bidi characters make the admin check look active when it's commented out.
+export function canRefund(user: { isAdmin: boolean }) {
+  let ok = false;
+  /* only admins {{BIDI_RLO}} } {{BIDI_LRI}}if (user.isAdmin){{BIDI_PDI}} {{BIDI_LRI}} { */  // expect[UNI002]
+  ok = true;
+  const isAdmin{{ZWSP}} = true;  // expect[UNI003] invisible character makes a look-alike name
+  const greeting = "مرحبا بك";  // safe[UNI002] ordinary Arabic text, no control characters
+  return ok;
+}

@@ -77,8 +77,13 @@ AGENT_IN_CI = re.compile(
     r"anthropics/claude-code-action|openai/codex-action|run-gemini-cli|aider\b|\bclaude\s+(?:-p|--print)\b|"
     r"\bcodex\s+exec\b|\bgemini\s+-p\b|copilot-swe-agent"
 )
-UNTRUSTED_TRIGGERS = re.compile(r"(?m)^\s*(?:-\s*)?(issue_comment|issues|pull_request_target|"
-                                r"pull_request_review_comment|discussion_comment)\s*:?")
+_TRIGGER_NAMES = r"(issue_comment|issues|pull_request_target|pull_request_review_comment|discussion_comment)"
+UNTRUSTED_TRIGGERS = re.compile(
+    rf"^[ \t]*(?:-[ \t]*)?{_TRIGGER_NAMES}[ \t]*:?[ \t]*(?:#.*)?$"      # block form:  on:\n  issues:
+    rf"|^[ \t]*on[ \t]*:[ \t]*\[[^\]\n]*\b{_TRIGGER_NAMES}\b"           # list form:   on: [issues, push]
+    rf"|^[ \t]*on[ \t]*:[ \t]*{_TRIGGER_NAMES}[ \t]*(?:#.*)?$",          # single:      on: issues
+    re.M,
+)
 POISON_PATTERNS = re.compile(
     r"(?i)ignore\s+(?:all\s+|any\s+)?(?:previous|prior|above)\s+(?:instructions|rules)|"
     r"(?:do\s+not|don't|never)\s+(?:tell|inform|mention|reveal|show)\s+(?:this\s+)?(?:to\s+)?the\s+user|"
@@ -101,10 +106,14 @@ def _walk(obj: Any, path: str = "") -> Iterable[tuple[str, Any]]:
 
 
 def _line(src: SourceFile, needle: str) -> int:
+    """Line of a JSON value: prefer the exact quoted string ("/" must not match
+    "@scope/pkg"), then fall back to a plain substring."""
     if needle:
-        for i, l in enumerate(src.lines, 1):
-            if needle in l:
-                return i
+        quoted = json.dumps(needle)
+        for candidate in (quoted, needle):
+            for i, l in enumerate(src.lines, 1):
+                if candidate in l:
+                    return i
     return 1
 
 
@@ -236,7 +245,10 @@ class AgentConfigScanner(Scanner):
             m = re.match(r"Bash\((.+)\)$", r)
             if m:
                 inner = m.group(1).strip()
-                if any(inner == c or inner.startswith((c + ":", c + " ")) for c in RISKY_CMDS):
+                # Only a wildcard rule ("curl:*", "rm *") hands over the whole command;
+                # a fully spelled-out command is a narrow, reviewed permission.
+                wildcard = "*" in inner or inner in RISKY_CMDS
+                if wildcard and any(inner == c or inner.startswith((c + ":", c + " ")) for c in RISKY_CMDS):
                     yield Finding(RISKY_ALLOW, src.path, ln, 1, src.snippet(ln),
                                   message=f"Pre-approved: {r}")
         if data.get("enableAllProjectMcpServers") is True:
@@ -263,7 +275,8 @@ class AgentConfigScanner(Scanner):
             if not guarded:
                 line, col = src.line_of(agent.start())
                 yield Finding(CI_UNTRUSTED, src.path, line, col, src.snippet(line),
-                              message=f"AI agent runs on '{trig.group(1)}' events with no author check")
+                              message=f"AI agent runs on '{next(g for g in trig.groups() if g)}' events "
+                                      f"with no author check")
 
 
 # --------------------------------------------------------------------- unicode
@@ -307,7 +320,17 @@ class HiddenUnicodeScanner(Scanner):
         if is_rules or src.suffix in CODEISH:
             yield from self._per_line(src, _ZW, ZERO_WIDTH)
         if is_rules:
-            yield from self._per_line(src, _ZWJ, ZERO_WIDTH)
+            # ZWJ is how multi-part emoji are built (woman + ZWJ + laptop); only flag it elsewhere.
+            done: set[int] = set()
+            for m in _ZWJ.finditer(text):
+                prev = text[m.start() - 1] if m.start() else ""
+                nxt = text[m.end()] if m.end() < len(text) else ""
+                if _is_emoji(prev) and _is_emoji(nxt):
+                    continue
+                line, col = src.line_of(m.start())
+                if line not in done:
+                    done.add(line)
+                    yield Finding(ZERO_WIDTH, src.path, line, col, _visible(src.lines[line - 1]))
 
     @staticmethod
     def _per_line(src: SourceFile, rx: re.Pattern, rule: Rule) -> Iterable[Finding]:
@@ -318,6 +341,13 @@ class HiddenUnicodeScanner(Scanner):
                 continue
             done.add(line)
             yield Finding(rule, src.path, line, col, _visible(src.lines[line - 1]))
+
+
+def _is_emoji(ch: str) -> bool:
+    if not ch:
+        return False
+    cp = ord(ch)
+    return cp >= 0x1F000 or 0x2600 <= cp <= 0x27BF or cp == 0xFE0F
 
 
 def _visible(line: str) -> str:

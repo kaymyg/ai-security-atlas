@@ -48,6 +48,7 @@ ACTION_PIN = Rule("SUP007", "GitHub Action not pinned to a commit SHA", Severity
                   "moved), and let Dependabot keep the pins current.", "CWE-829")
 
 NEW_PACKAGE_DAYS = 30
+PINNED_SHA = re.compile(r"[@#][0-9a-f]{40}\b")
 
 
 def normalise_py(name: str) -> str:
@@ -106,11 +107,25 @@ def parse_requirements(src: SourceFile) -> Iterable[tuple[str, str, int]]:
             yield m.group(1), m.group(3).split(";")[0].strip(), i
 
 
+def strip_toml_comment(line: str) -> str:
+    """Drop a trailing # comment, ignoring # inside quoted strings."""
+    quote = ""
+    for i, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = ""
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#":
+            return line[:i]
+    return line
+
+
 def parse_pyproject(src: SourceFile) -> Iterable[tuple[str, str, int]]:
     in_list = False
     section = ""
     for i, raw in enumerate(src.lines, 1):
-        line = raw.strip()
+        line = strip_toml_comment(raw).strip()
         if line.startswith("["):
             section = line
             in_list = False
@@ -293,7 +308,9 @@ class DependencyScanner(Scanner):
         popular = POPULAR_PYPI if eco == "pypi" else POPULAR_NPM
         for raw_name, spec, line in deps:
             if raw_name == "__url__":
-                yield Finding(URL_DEP, src.path, line, 1, src.snippet(line))
+                # Pinned to a full commit SHA is exactly what the fix recommends.
+                if not PINNED_SHA.search(spec):
+                    yield Finding(URL_DEP, src.path, line, 1, src.snippet(line))
                 continue
             name = normalise_py(raw_name) if eco == "pypi" else raw_name.lower()
             target = squat_target(name, popular)

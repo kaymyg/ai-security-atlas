@@ -1,0 +1,12 @@
+[project]
+name = "demo-app"
+authors = [{ name = "someone" }]  # safe[SUP004,SUP001]
+keywords = ["requets", "ai"]  # safe[SUP001] keywords aren't dependencies
+dependencies = [
+  "flask>=3.0",  # safe[SUP001,SUP004]
+  "fastapi",  # expect[SUP004]
+  "langchian>=0.3",  # expect[SUP001]
+]
+
+[project.optional-dependencies]
+dev = ["pytset>=8"]  # expect[SUP001]

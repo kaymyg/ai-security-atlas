@@ -53,13 +53,16 @@ agents_md = (
     "- Keep functions small.\n"
 )
 
+# Built from chr() so this source file contains no invisible characters itself.
+RLO, LRI, PDI = chr(0x202E), chr(0x2066), chr(0x2069)
+
 # The bidi override makes the comment look like it ends before `isAdmin`,
 # so the check reads as active code to a human but is commented out when run.
 trojan = (
     "// DELIBERATELY INSECURE demo of 'Trojan Source' (CVE-2021-42574)\n"
     "function canRefund(user) {\n"
     "  let ok = false;\n"
-    "  /* only admins ‮ } ⁦if (user.isAdmin)⁩ ⁦ { */\n"
+    "  /* only admins " + RLO + " } " + LRI + "if (user.isAdmin)" + PDI + " " + LRI + " { */\n"
     "  ok = true;\n"
     "  return ok;\n"
     "}\n"

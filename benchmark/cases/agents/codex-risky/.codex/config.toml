@@ -1,0 +1,3 @@
+model = "gpt-5"  # safe[AGT010]
+approval_policy = "never"  # expect[AGT010]
+sandbox_mode = "danger-full-access"  # expect[AGT010]

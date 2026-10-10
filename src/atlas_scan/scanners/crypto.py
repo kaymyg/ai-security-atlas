@@ -49,11 +49,13 @@ CHECKS: list[tuple[Rule, str, str]] = [
           "Use AES-256-GCM or ChaCha20-Poly1305.", "CWE-327"),
      "DES/3DES/RC4",
      r"algorithms\.(?:TripleDES|ARC4|Blowfish|IDEA)\b|\b(?:DES3?|ARC4|Blowfish)\.new\(|"
-     r"createCipheriv\(\s*[\"'](?:des|des3|des-ede3|rc4|bf)[\w-]*[\"']|Cipher\.getInstance\(\s*\"(?:DES|DESede|RC4)"),
+     r"createCipheriv\(\s*[\"'](?:des|des3|des-ede3|rc4|bf)[\w-]*[\"']|Cipher\.getInstance\(\s*\"(?:DES|DESede|RC4)|"
+     r"\bdes\.New(?:TripleDES)?Cipher\(|\brc4\.NewCipher\("),
     (Rule("PQC003", "ECB block-cipher mode", Severity.HIGH, C,
           "ECB leaks patterns in your data. Use GCM.", "CWE-327"),
      "ECB mode",
-     r"modes\.ECB\b|MODE_ECB\b|[\"']aes-\d{3}-ecb[\"']|/ECB/"),
+     r"modes\.ECB\b|MODE_ECB\b|[\"']aes-\d{3}-ecb[\"']|(?<!RSA)/ECB/|"
+     r"Cipher\.getInstance\(\s*\"AES\"\s*\)"),  # Java's bare "AES" defaults to ECB
     (Rule("PQC004", "RSA key shorter than 2048 bits", Severity.HIGH, C,
           "Use at least 3072-bit RSA now, and plan the post-quantum move.", "CWE-326"),
      "RSA < 2048",
@@ -96,6 +98,8 @@ CHECKS: list[tuple[Rule, str, str]] = [
 PQC_READY = re.compile(r"(?i)\bML-?KEM\b|\bKyber\d*\b|\bML-?DSA\b|\bDilithium\d?\b|\bSLH-?DSA\b|\bSPHINCS\+?|"
                        r"\bFalcon-?\d+\b|X25519MLKEM768|X25519Kyber768|\bliboqs\b|\boqs\.")
 
+_IMPORT_LINE = re.compile(r"^\s*(?:from\s+\S+\s+import\b|import\s)")
+
 INVENTORY = Rule("PQC000", "Cryptography inventory", Severity.INFO, C,
                  "Use this list as the 'Discovery' step of a post-quantum migration plan.")
 
@@ -117,6 +121,8 @@ class QuantumCryptoScanner(Scanner):
         for rule, label, rx in _compiled:
             for m in rx.finditer(src.text):
                 line, col = src.line_of(m.start())
+                if _IMPORT_LINE.match(src.lines[line - 1]):
+                    continue  # importing a class isn't using it
                 self.inventory[label].add(src.path)
                 yield Finding(rule=rule, path=src.path, line=line, column=col, snippet=src.snippet(line))
         if PQC_READY.search(src.text):

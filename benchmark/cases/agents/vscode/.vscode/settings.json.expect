@@ -1,0 +1,2 @@
+expect[AGT010] "chat.tools.autoApprove"
+safe[AGT010] "editor.formatOnSave"

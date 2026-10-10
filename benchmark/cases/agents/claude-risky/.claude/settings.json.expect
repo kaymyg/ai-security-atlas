@@ -1,0 +1,8 @@
+expect[AGT010] "bypassPermissions"
+expect[AGT011] "Bash(*)"
+expect[AGT012] "Bash(rm:*)"
+expect[AGT012] "Bash(git push:*)"
+safe[AGT011,AGT012] "Bash(npm test:*)"
+# One fixed health-check URL is a narrow, low-risk permission.
+safe[AGT012] "Bash(curl https://api.example.com/health)"
+expect[AGT013] "enableAllProjectMcpServers"

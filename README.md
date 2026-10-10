@@ -30,12 +30,31 @@ Every finding has a **kind**, separate from its severity:
 
 Full list with fixes: [docs/RULES.md](docs/RULES.md), or run `atlas rules`.
 
+## How accurate is it?
+
+Every rule is graded against a [labelled benchmark](benchmark/) of 300+ hand-written lines: unsafe code it should catch, safe look-alikes it should leave alone, and known blind spots. CI fails if any result changes without explanation.
+
+| | v0.2.0 | v0.3.0 |
+|---|---|---|
+| Precision (alarms that were right) | 88% | **94%** |
+| Recall (unsafe cases caught) | 85% | **94%** |
+| False alarms / misses | 23 / 31 | **12 / 13** |
+
+Per-rule scores: [benchmark/RESULTS.md](benchmark/RESULTS.md). The weakest areas, so you know where to double-check:
+
+- **Anything that needs data flow.** A value built on one line and used on another (`query = f"…"` then `db.execute(query)`) isn't caught.
+- **Poisoned agent rules files (AGT030)** are keyword-based: harmless phrases like "ignore previous instructions from older versions" can trigger it, and cleverly worded attacks can slip past.
+- **Sample tokens in docs and tests** (like jwt.io's example JWT) are flagged as secrets.
+- **Go, Java and PHP** have crypto rules but no code-injection rules yet.
+
+These numbers come from deliberately tricky cases, not from real-world repositories, so treat them as a rule-by-rule guide rather than a promise.
+
 ## Quick start
 
 Needs Python 3.9 or newer. No other dependencies.
 
 ```bash
-pip install git+https://github.com/kaymyg/ai-security-atlas@v0.2.0
+pip install git+https://github.com/kaymyg/ai-security-atlas@v0.3.0
 atlas scan .
 ```
 
@@ -97,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
-      - uses: kaymyg/ai-security-atlas@v0.2.0   # for production, pin the tag's commit SHA instead
+      - uses: kaymyg/ai-security-atlas@v0.3.0   # for production, pin the tag's commit SHA instead
         with:
           fail-on: high
           online: true
@@ -118,7 +137,7 @@ jobs:
 
 Every input is validated and passed to the scanner as a separate argument; nothing is pasted into the shell. The Action's own dependencies are pinned to commit SHAs and kept current by Dependabot.
 
-**Pinning this Action to a SHA:** find the commit for a release with `git ls-remote https://github.com/kaymyg/ai-security-atlas refs/tags/v0.2.0`, then use `kaymyg/ai-security-atlas@<sha>  # v0.2.0`.
+**Pinning this Action to a SHA:** find the commit for a release with `git ls-remote https://github.com/kaymyg/ai-security-atlas refs/tags/v0.3.0`, then use `kaymyg/ai-security-atlas@<sha>  # v0.3.0`.
 
 ## Silencing findings
 
@@ -146,7 +165,8 @@ src/atlas_scan/
     deps.py       SUP*  supply chain
     crypto.py     PQC*  weak crypto and post-quantum inventory
 examples/         deliberately vulnerable demo app
-tests/            pytest suite
+benchmark/        labelled accuracy cases, runner and RESULTS.md
+tests/            pytest suite (includes the benchmark check)
 docs/             threat map, rules, limitations, how it works
 ```
 
@@ -154,8 +174,9 @@ docs/             threat map, rules, limitations, how it works
 
 Accuracy before features:
 
-- [ ] **Labelled benchmark corpus** (true positives, safe look-alikes, known misses) with published per-rule results
-- [ ] AST-based checks for Python and JS/TS to replace the noisiest regex rules
+- [x] Labelled benchmark with published per-rule results (v0.3.0)
+- [ ] AST-based checks for Python and JS/TS: fixes the data-flow misses and the multi-line noise the benchmark found
+- [ ] Grow the benchmark with cases taken from real repositories
 - [ ] `--baseline` so existing findings don't block new pull requests
 - [ ] Lock-file parsing and known-CVE lookups via OSV
 - [ ] More languages for code rules (Go, Java, PHP, Terraform)

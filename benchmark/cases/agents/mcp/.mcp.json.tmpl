@@ -1,0 +1,100 @@
+{
+  "mcpServers": {
+    "fs-root": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/"
+      ]
+    },
+    "fs-home": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.9.1",
+        "~"
+      ]
+    },
+    "fs-project": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@2026.9.1",
+        "./docs"
+      ]
+    },
+    "tracker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "tracker-mcp@latest"
+      ],
+      "env": {
+        "TRACKER_API_TOKEN": "{{RANDOM32}}"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "github-mcp-server@1.4.0"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "github-cli-token": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "gh-mcp@0.3.0",
+        "--token",
+        "{{GITHUB_TOKEN}}"
+      ]
+    },
+    "docker-sock": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "mcp/docker:1.0"
+      ]
+    },
+    "docker-fetch": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "mcp/fetch:1.2"
+      ]
+    },
+    "git-unpinned": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git"
+      ]
+    },
+    "git-pinned": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git==0.6.2"
+      ]
+    },
+    "wiki-http": {
+      "url": "http://wiki.example.com/mcp"
+    },
+    "local-dev": {
+      "url": "http://localhost:3000/mcp"
+    },
+    "saas-bearer": {
+      "url": "https://mcp.example.com/sse",
+      "headers": {
+        "Authorization": "Bearer {{RANDOM32}}"
+      }
+    }
+  }
+}
