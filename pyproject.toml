@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-security-atlas"
+version = "0.1.0"
+description = "One scanner for AI-era code risks: vibe-code flaws, leaked secrets, hallucinated packages, quantum-weak crypto and risky AI-agent configs."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "kaymyg" }]
+keywords = ["security", "sast", "ai", "mcp", "post-quantum", "supply-chain", "secrets"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Security",
+  "Environment :: Console",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+atlas = "atlas_scan.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kaymyg/ai-security-atlas"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

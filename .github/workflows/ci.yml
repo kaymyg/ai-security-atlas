@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -e ".[dev]"
+      - run: pytest -q
+
+  demo:
+    # The demo app must keep producing findings; if it goes quiet a rule broke.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install .
+      - run: python examples/make_demo_secrets.py
+      - name: Scan demo app (expected to find problems)
+        run: |
+          set +e
+          atlas scan examples/vulnerable-app
+          code=$?
+          if [ "$code" -ne 1 ]; then echo "Expected findings (exit 1), got $code"; exit 1; fi
+
+  self-scan:
+    # Dogfooding: the project scans itself with its own GitHub Action.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          fail-on: high

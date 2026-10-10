@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"]
+    },
+    "issue-tracker": {
+      "command": "npx",
+      "args": ["-y", "some-issue-tracker-mcp@latest"],
+      "env": { "TRACKER_API_TOKEN": "q8Zt3VmR1xLp7KwN4cJd9HsE2yFb6GaU" }
+    },
+    "docker-tools": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "-v", "/var/run/docker.sock:/var/run/docker.sock", "mcp/docker-tools:1.0"]
+    },
+    "team-wiki": {
+      "url": "http://wiki.internal.example.com/mcp"
+    },
+    "pinned-and-fine": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory@2025.8.4"]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# DELIBERATELY RISKY demo workflow: anyone who comments on an issue
+# gets to write the prompt for an agent that holds a write token.
+name: AI issue triage
+on:
+  issue_comment:
+    types: [created]
+permissions:
+  contents: write
+  issues: write
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: some-org/setup-tools@v2
+      - run: curl -sSL https://tools.example.dev/setup.sh | sh
+      - uses: anthropics/claude-code-action@v1
+        with:
+          prompt: ${{ github.event.comment.body }}

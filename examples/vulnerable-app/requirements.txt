@@ -1,0 +1,7 @@
+# DELIBERATELY RISKY demo dependencies
+flask
+reqeusts==2.31.0
+pyyaml==6.0.1
+cryptography==43.0.0
+git+https://github.com/someone/random-helper.git
+fastapi-secure-auth-toolkit==1.0.0

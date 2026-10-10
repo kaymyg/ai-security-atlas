@@ -1,0 +1,4 @@
+# Paths the self-scan skips. The demo app and test fixtures are insecure on purpose.
+examples
+tests
+docs

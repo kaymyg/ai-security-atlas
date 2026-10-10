@@ -1,0 +1,69 @@
+name: "AI Security Atlas"
+description: "Scan for AI-era risks: vibe-code flaws, leaked secrets, risky AI-agent/MCP configs, hallucinated packages and quantum-weak crypto."
+author: "kaymyg"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Folder to scan"
+    default: "."
+  fail-on:
+    description: "Fail the job on findings at or above this level: critical, high, medium, low, info, never"
+    default: "high"
+  min-severity:
+    description: "Hide findings below this level"
+    default: "low"
+  online:
+    description: "Check PyPI/npm for hallucinated or brand-new packages (true/false)"
+    default: "true"
+  upload-sarif:
+    description: "Upload results to the GitHub Security tab (needs `security-events: write`)"
+    default: "true"
+  extra-args:
+    description: "Any other arguments for `atlas scan`, e.g. --exclude 'fixtures/*'"
+    default: ""
+
+outputs:
+  sarif-file:
+    description: "Path to the SARIF report"
+    value: ${{ steps.scan.outputs.sarif }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install ai-security-atlas
+      shell: bash
+      run: python -m pip install --quiet "${{ github.action_path }}"
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        ATLAS_PATH: ${{ inputs.path }}
+        ATLAS_FAIL_ON: ${{ inputs.fail-on }}
+        ATLAS_MIN: ${{ inputs.min-severity }}
+        ATLAS_ONLINE: ${{ inputs.online }}
+        ATLAS_EXTRA: ${{ inputs.extra-args }}
+      run: |
+        online=""
+        if [ "$ATLAS_ONLINE" = "true" ]; then online="--online"; fi
+        sarif="$RUNNER_TEMP/atlas.sarif"
+        echo "sarif=$sarif" >> "$GITHUB_OUTPUT"
+        # One report for the Security tab, one for the job summary; the
+        # final text run decides pass/fail.
+        atlas scan "$ATLAS_PATH" $online --min-severity "$ATLAS_MIN" --fail-on never -f sarif -o "$sarif" $ATLAS_EXTRA
+        atlas scan "$ATLAS_PATH" $online --min-severity "$ATLAS_MIN" --fail-on never -f markdown $ATLAS_EXTRA >> "$GITHUB_STEP_SUMMARY"
+        atlas scan "$ATLAS_PATH" $online --min-severity "$ATLAS_MIN" --fail-on "$ATLAS_FAIL_ON" $ATLAS_EXTRA
+
+    - name: Upload SARIF
+      if: always() && inputs.upload-sarif == 'true' && steps.scan.outputs.sarif != ''
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ steps.scan.outputs.sarif }}
+        category: ai-security-atlas

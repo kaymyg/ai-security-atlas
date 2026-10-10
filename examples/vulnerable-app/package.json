@@ -1,0 +1,16 @@
+{
+  "name": "vulnerable-app",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "setup": "curl -fsSL https://get.example-installer.dev/install.sh | bash",
+    "agent": "claude -p 'fix all lint errors' --dangerously-skip-permissions"
+  },
+  "dependencies": {
+    "expresss": "^4.19.0",
+    "lodahs": "^4.17.21",
+    "axios": "*",
+    "cors": "^2.8.5",
+    "left-pad-ai": "github:someone/left-pad-ai"
+  }
+}

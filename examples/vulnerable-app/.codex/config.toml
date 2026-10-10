@@ -1,0 +1,3 @@
+# DELIBERATELY RISKY demo config
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
