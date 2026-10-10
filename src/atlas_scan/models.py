@@ -33,8 +33,24 @@ CATEGORIES = {
     "secrets": "Secrets that could spill into AI tools or git",
     "agents": "AI agent / MCP permissions and trust",
     "supply-chain": "Hallucinated or typosquatted dependencies",
-    "quantum": "Quantum-vulnerable or weak cryptography",
+    "quantum": "Weak cryptography and post-quantum inventory",
 }
+
+
+# What a finding means, separate from how severe it is:
+#   vulnerability     a weakness or exposure that could be used against you now
+#   misconfiguration  a risky setting that widens the damage if something else goes wrong
+#   inventory         an observation for planning (e.g. post-quantum migration), not a weakness by itself
+KINDS = ("vulnerability", "misconfiguration", "inventory")
+
+MISCONFIGURATION_IDS = {
+    "VIBE017", "VIBE052", "VIBE053",
+    "SEC030",
+    "AGT002", "AGT003", "AGT004", "AGT005", "AGT010", "AGT011", "AGT012", "AGT013", "AGT014", "AGT020",
+    "SUP004", "SUP005", "SUP006", "SUP007",
+    "PQC005",
+}
+INVENTORY_IDS = {"PQC000", "PQC010", "PQC011", "PQC012", "PQC013", "PQC014", "SUP003", "SUP008"}
 
 
 @dataclass
@@ -45,6 +61,14 @@ class Rule:
     category: str
     fix: str = ""
     cwe: str = ""
+
+    @property
+    def kind(self) -> str:
+        if self.id in INVENTORY_IDS:
+            return "inventory"
+        if self.id in MISCONFIGURATION_IDS:
+            return "misconfiguration"
+        return "vulnerability"
 
 
 @dataclass
@@ -67,6 +91,7 @@ class Finding:
             "title": self.rule.title,
             "severity": str(self.rule.severity),
             "category": self.rule.category,
+            "kind": self.rule.kind,
             "path": self.path,
             "line": self.line,
             "column": self.column,
@@ -120,4 +145,4 @@ def as_dicts(findings: list[Finding]) -> list[dict]:
     return [f.to_dict() for f in findings]
 
 
-__all__ = ["Severity", "Rule", "Finding", "SourceFile", "CATEGORIES", "as_dicts", "asdict"]
+__all__ = ["Severity", "Rule", "Finding", "SourceFile", "CATEGORIES", "KINDS", "as_dicts", "asdict"]

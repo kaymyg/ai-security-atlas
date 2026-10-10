@@ -94,10 +94,15 @@ def cmd_scan(args: argparse.Namespace) -> int:
     else:
         sys.stdout.write(report)
 
+    if result.excluded_everything:
+        print("atlas: ignore patterns excluded every file, so nothing was scanned. "
+              "Check .atlasignore and --exclude.", file=sys.stderr)
+        return 2
     if args.fail_on == "never":
         return 0
     threshold = Severity.parse(args.fail_on)
-    blocking = [f for f in result.findings if f.severity >= threshold and f.rule.id != "PQC000"]
+    # Inventory items are planning notes, never a reason to fail a build.
+    blocking = [f for f in result.findings if f.severity >= threshold and f.rule.kind != "inventory"]
     return 1 if blocking else 0
 
 

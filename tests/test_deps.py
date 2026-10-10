@@ -59,7 +59,8 @@ def test_pipe_to_shell_and_action_pinning(scan):
           "  - run: curl -sSL https://x.dev/i.sh | bash\n")
     findings = scan({".github/workflows/ci.yml": wf})
     assert ids(findings) == ["SUP006", "SUP007"]
-    assert sum(f.rule.id == "SUP007" for f in findings) == 1
+    # actions/checkout@v4 and someone/tool@v1 are both movable tags; the SHA pin is fine.
+    assert sum(f.rule.id == "SUP007" for f in findings) == 2
 
 
 def test_online_check_finds_missing_and_new_packages(tmp_path):
@@ -83,6 +84,10 @@ def test_online_check_survives_network_errors(tmp_path):
     def broken(url):
         raise OSError("offline")
 
-    (tmp_path / "requirements.txt").write_text("flask==3.0\n")
+    (tmp_path / "requirements.txt").write_text("flask==3.0\nrich==13.0\n")
     scanner = DependencyScanner(online=True, registry=Registry(fetch=broken))
-    assert scan_path(str(tmp_path), scanners=[scanner]).findings == []
+    findings = scan_path(str(tmp_path), scanners=[scanner]).findings
+    # Unknown is reported as unknown, never as "missing".
+    assert [f.rule.id for f in findings] == ["SUP008"]
+    assert findings[0].extra["packages"] == ["pypi:flask", "pypi:rich"]
+    assert findings[0].rule.kind == "inventory"

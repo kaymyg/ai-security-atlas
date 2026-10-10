@@ -1,0 +1,12 @@
+# Keeps the pinned Action SHAs (and their "# vX.Y.Z" comments) up to date.
+# Dependabot opens a pull request when a new release appears; review the
+# release notes, let CI run, then merge.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]

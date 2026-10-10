@@ -20,15 +20,25 @@ def render() -> str:
         "",
         "Silence a finding on one line with `# atlas: ignore[RULE_ID]` (or `// atlas: ignore[RULE_ID]`).",
         "",
+        "**Kind** says what a finding means, separately from how severe it is:",
+        "",
+        "- **vulnerability**: a weakness or exposure that could be used against you now.",
+        "- **misconfiguration**: a risky setting that widens the damage if something else goes wrong.",
+        "- **inventory**: a planning note (e.g. post-quantum migration), not a weakness by itself. "
+        "Never fails a build.",
+        "",
+        "Every rule is a pattern check, so each one can miss cases and flag safe code. "
+        "See [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).",
+        "",
     ]
     rules = all_rules()
     for cat, label in CATEGORIES.items():
         group = [r for r in rules if r.category == cat]
-        lines += [f"## {label}", "", "| ID | Severity | Rule |", "|---|---|---|"]
-        lines += [f"| [{r.id}](#{r.id.lower()}) | {r.severity} | {r.title} |" for r in group]
+        lines += [f"## {label}", "", "| ID | Severity | Kind | Rule |", "|---|---|---|---|"]
+        lines += [f"| [{r.id}](#{r.id.lower()}) | {r.severity} | {r.kind} | {r.title} |" for r in group]
         lines.append("")
         for r in group:
-            lines += [f"### {r.id}", "", f"**{r.title}** · severity: {r.severity}" +
+            lines += [f"### {r.id}", "", f"**{r.title}** · severity: {r.severity} · kind: {r.kind}" +
                       (f" · {r.cwe}" if r.cwe else ""), ""]
             if r.fix:
                 lines += [f"**Fix:** {r.fix}", ""]

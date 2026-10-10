@@ -46,27 +46,40 @@ def load_ignore_patterns(root: Path) -> list[str]:
 
 
 def is_ignored(rel: str, patterns: list[str]) -> bool:
-    for pat in patterns:
-        if fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(rel, pat + "/*"):
-            return True
-        # a bare name like "fixtures" matches that folder anywhere
-        if "/" not in pat and any(fnmatch.fnmatch(part, pat) for part in rel.split("/")):
-            return True
-    return False
+    return matching_pattern(rel, patterns) is not None
+
+
+def matching_pattern(rel: str, patterns: list[str]) -> str | None:
+    """Return the first pattern that excludes ``rel``, or None."""
+    for original in patterns:
+        if _matches(rel, original) or (original.startswith("**/") and _matches(rel, original[3:])):
+            return original
+    return None
+
+
+def _matches(rel: str, pat: str) -> bool:
+    if fnmatch.fnmatch(rel, pat) or fnmatch.fnmatch(rel, pat + "/*"):
+        return True
+    # a bare name like "fixtures" matches that folder anywhere
+    return "/" not in pat and any(fnmatch.fnmatch(part, pat) for part in rel.split("/"))
 
 
 def _looks_binary(chunk: bytes) -> bool:
     return b"\x00" in chunk
 
 
-def iter_files(root: str | os.PathLike, extra_ignores: list[str] | None = None) -> Iterator[SourceFile]:
+def iter_files(root: str | os.PathLike, extra_ignores: list[str] | None = None,
+               excluded: dict[str, int] | None = None) -> Iterator[SourceFile]:
+    """Yield scannable files. If ``excluded`` is given, it's filled with
+    {ignore pattern: number of files it excluded} so reports can show it."""
     root_path = Path(root).resolve()
     patterns = load_ignore_patterns(root_path) + list(extra_ignores or [])
+    tally = excluded if excluded is not None else {}
 
     if root_path.is_file():
         candidates = [(root_path, root_path.name)]
     else:
-        candidates = _walk(root_path, patterns)
+        candidates = _walk(root_path, patterns, tally)
 
     for abspath, rel in candidates:
         name = abspath.name
@@ -85,19 +98,33 @@ def iter_files(root: str | os.PathLike, extra_ignores: list[str] | None = None) 
         yield SourceFile(path=rel, abspath=str(abspath), text=text)
 
 
-def _walk(root: Path, patterns: list[str]) -> Iterator[tuple[Path, str]]:
+def _count_files(folder: Path) -> int:
+    total = 0
+    for _, dirnames, filenames in os.walk(folder):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        total += len(filenames)
+    return total
+
+
+def _walk(root: Path, patterns: list[str], tally: dict[str, int]) -> Iterator[tuple[Path, str]]:
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = os.path.relpath(dirpath, root).replace(os.sep, "/")
         rel_dir = "" if rel_dir == "." else rel_dir
         keep = []
         for d in sorted(dirnames):
             rel = f"{rel_dir}/{d}" if rel_dir else d
-            if d in SKIP_DIRS or is_ignored(rel, patterns):
+            if d in SKIP_DIRS:
+                continue
+            pat = matching_pattern(rel, patterns)
+            if pat is not None:
+                tally[pat] = tally.get(pat, 0) + _count_files(Path(dirpath) / d)
                 continue
             keep.append(d)
         dirnames[:] = keep
         for f in sorted(filenames):
             rel = f"{rel_dir}/{f}" if rel_dir else f
-            if is_ignored(rel, patterns):
+            pat = matching_pattern(rel, patterns)
+            if pat is not None:
+                tally[pat] = tally.get(pat, 0) + 1
                 continue
             yield Path(dirpath) / f, rel

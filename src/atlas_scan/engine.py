@@ -21,8 +21,20 @@ _IGNORE_RE = re.compile(r"atlas:\s*ignore(?!-file)(?:\[([A-Z0-9_,\s-]+)\])?", re
 class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     files_scanned: int = 0
-    suppressed: int = 0
-    skipped_files: list[str] = field(default_factory=list)  # via "atlas: ignore-file"
+    # Audit trail: everything that was silenced, and how.
+    suppressed_findings: list[Finding] = field(default_factory=list)  # inline "atlas: ignore"
+    skipped_files: list[str] = field(default_factory=list)            # "atlas: ignore-file"
+    exclusions: dict[str, int] = field(default_factory=dict)          # ignore pattern -> files excluded
+    errors: list[dict] = field(default_factory=list)                  # a scanner crashed on a file
+    warnings: list[str] = field(default_factory=list)
+
+    @property
+    def suppressed(self) -> int:
+        return len(self.suppressed_findings)
+
+    @property
+    def excluded_everything(self) -> bool:
+        return self.files_scanned == 0 and sum(self.exclusions.values()) > 0
 
     def at_or_above(self, level: Severity) -> list[Finding]:
         return [f for f in self.findings if f.severity >= level]
@@ -76,16 +88,20 @@ def scan_path(
     result = ScanResult()
     seen: set[tuple] = set()
 
-    for src in iter_files(root, extra_ignores):
+    for src in iter_files(root, extra_ignores, excluded=result.exclusions):
         result.files_scanned += 1
         if _FILE_IGNORE_RE.search("\n".join(src.lines[:5])):
             result.skipped_files.append(src.path)
             continue
         table = None
         for scanner in scanners:
-            if not scanner.applies(src):
+            try:
+                found = list(scanner.scan(src)) if scanner.applies(src) else []
+            except Exception as exc:  # one odd file must not stop the whole scan
+                # Record only the error type: the message could contain file content.
+                result.errors.append({"scanner": scanner.name, "path": src.path, "error": type(exc).__name__})
                 continue
-            for f in scanner.scan(src):
+            for f in found:
                 if f.severity < min_severity:
                     continue
                 key = (f.rule.id, f.path, f.line, f.snippet)
@@ -95,7 +111,7 @@ def scan_path(
                 if table is None:
                     table = _suppressions(src)
                 if _is_suppressed(f, table):
-                    result.suppressed += 1
+                    result.suppressed_findings.append(f)
                     continue
                 result.findings.append(f)
 
@@ -103,4 +119,20 @@ def scan_path(
         result.findings.extend(f for f in scanner.finish() if f.severity >= min_severity)
 
     result.findings.sort(key=lambda f: (-f.severity, f.path, f.line, f.rule.id))
+    result.warnings = _warnings(result)
     return result
+
+
+def _warnings(result: ScanResult) -> list[str]:
+    out = []
+    excluded_total = sum(result.exclusions.values())
+    if result.excluded_everything:
+        out.append(f"Ignore patterns excluded every file ({excluded_total}); nothing was scanned.")
+    else:
+        total = result.files_scanned + excluded_total
+        for pattern, count in result.exclusions.items():
+            if total >= 10 and count / total > 0.5:
+                out.append(f"Ignore pattern '{pattern}' excludes {count} of {total} files.")
+    if result.errors:
+        out.append(f"{len(result.errors)} file(s) could not be fully scanned (see errors).")
+    return out

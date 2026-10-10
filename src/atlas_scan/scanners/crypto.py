@@ -5,14 +5,14 @@ Problem area 5 ("harvest now, decrypt later"). Every post-quantum migration
 plan starts with the same step: find out where you use which algorithm.
 This scanner does that discovery step for a codebase.
 
-Risk ranking:
-  * Key exchange / public-key encryption (RSA-OAEP, ECDH, DH, X25519) is the
-    urgent part: traffic recorded today can be decrypted once a large quantum
-    computer exists.
-  * Signatures (ECDSA, Ed25519, RSA-PSS, secp256k1) can't be broken
-    retroactively, but long-lived keys still need a migration plan.
-  * Weak classical crypto (MD5, SHA-1, DES, RC4, ECB, short RSA keys, old TLS)
-    is broken today, quantum or not.
+Two very different kinds of result:
+  * Broken today (PQC001-005, kind "vulnerability"/"misconfiguration"):
+    MD5, SHA-1, DES, RC4, ECB, short RSA keys, old TLS. Fix these now.
+  * Post-quantum migration items (PQC010-014, kind "inventory"): RSA, ECDH,
+    X25519, ECDSA, Ed25519. These are standard and safe against today's
+    attackers. They are listed so you can plan a migration, not because the
+    code is vulnerable now. Key exchange (PQC010/011) is ranked first because
+    recorded traffic could be decrypted later ("harvest now, decrypt later").
 """
 
 from __future__ import annotations
@@ -66,29 +66,29 @@ CHECKS: list[tuple[Rule, str, str]] = [
      r"minVersion\s*:\s*[\"']TLSv1(?:\.1)?[\"']|tls\.VersionTLS1[01]\b|ssl_protocols[^;\n]*\b(?:SSLv3|TLSv1|TLSv1\.1)\s"),
 
     # --- quantum: harvest-now-decrypt-later ---
-    (Rule("PQC010", "RSA encryption/key transport (quantum-vulnerable)", Severity.MEDIUM, C, PQC_FIX_KEX, "CWE-327"),
+    (Rule("PQC010", "RSA encryption in use (post-quantum migration item)", Severity.LOW, C, PQC_FIX_KEX),
      "RSA encryption",
      r"padding\.OAEP\b|PKCS1_OAEP|PKCS1_v1_5\.new|publicEncrypt\(|privateDecrypt\(|[\"']RSA-OAEP[\"']|"
      r"rsa\.Encrypt(?:OAEP|PKCS1v15)|Cipher\.getInstance\(\s*\"RSA"),
-    (Rule("PQC011", "Classical key exchange (ECDH/DH/X25519, quantum-vulnerable)", Severity.MEDIUM, C,
-          PQC_FIX_KEX, "CWE-327"),
+    (Rule("PQC011", "Classical key exchange in use: ECDH/DH/X25519 (post-quantum migration item)", Severity.LOW,
+          C, PQC_FIX_KEX),
      "ECDH/DH/X25519",
      r"\bec\.ECDH\b|\bX25519PrivateKey\b|\bX448PrivateKey\b|createECDH\(|createDiffieHellman\(|"
      r"\bdh\.generate_parameters\(|ecdh\.(?:P256|P384|P521|X25519)\(|KeyAgreement\.getInstance\(|"
      r"[\"']ECDH[\"']|nacl\.box\b|crypto_box_keypair"),
-    (Rule("PQC012", "RSA key generation (quantum-vulnerable)", Severity.LOW, C, PQC_FIX_KEX, "CWE-327"),
+    (Rule("PQC012", "RSA keys in use (post-quantum migration item)", Severity.INFO, C, PQC_FIX_KEX),
      "RSA keys",
      r"rsa\.generate_private_key\(|RSA\.generate\(|generateKeyPair(?:Sync)?\(\s*[\"']rsa|rsa\.GenerateKey\(|"
      r"KeyPairGenerator\.getInstance\(\s*\"RSA\"|-----BEGIN RSA (?:PUBLIC|PRIVATE) KEY-----"),
-    (Rule("PQC013", "Classical signature scheme (quantum-vulnerable)", Severity.LOW, C, PQC_FIX_SIG, "CWE-327"),
+    (Rule("PQC013", "Classical signatures in use (post-quantum migration item)", Severity.INFO, C, PQC_FIX_SIG),
      "ECDSA/EdDSA/DSA",
      r"\bec\.ECDSA\(|\bEd25519PrivateKey\b|\bEd448PrivateKey\b|\bdsa\.generate_private_key\(|"
      r"\bpadding\.PSS\(|generateKeyPair(?:Sync)?\(\s*[\"'](?:ec|ed25519|ed448|dsa)[\"']|"
      r"ecdsa\.(?:Sign|GenerateKey)\(|\bed25519\.(?:Sign|GenerateKey)\(|SigningKey\.generate\(|"
      r"\balgorithms?\s*[:=]\s*\[?\s*[\"'](?:RS|ES|PS)(?:256|384|512)[\"']|[\"']EdDSA[\"']|Signature\.getInstance\(\s*\"\w*(?:ECDSA|RSA|DSA)"),
-    (Rule("PQC014", "secp256k1 wallet keys (quantum-vulnerable signatures)", Severity.INFO, C,
+    (Rule("PQC014", "secp256k1 wallet keys in use (post-quantum migration item)", Severity.INFO, C,
           "Exposed public keys on-chain can't be rotated retroactively. Avoid address reuse and track your chain's "
-          "PQ roadmap.", "CWE-327"),
+          "PQ roadmap."),
      "secp256k1",
      r"\bsecp256k1\b|privateKeyToAccount\(|new\s+ethers\.Wallet\(|Wallet\.createRandom\(|Account\.from_key\("),
 ]

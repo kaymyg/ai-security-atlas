@@ -27,7 +27,7 @@ One idea holds it together: **a scanner turns a file into a list of `Finding`s.*
 ## 1. `models.py`: the vocabulary
 
 - `Severity`: an ordered enum, so `Severity.HIGH > Severity.LOW` works.
-- `Rule`: what a check is (id, title, severity, category, fix, CWE).
+- `Rule`: what a check is (id, title, severity, category, fix, CWE). Its `kind` (vulnerability, misconfiguration or inventory) comes from two sets at the top of the file, `MISCONFIGURATION_IDS` and `INVENTORY_IDS`; anything not listed is a vulnerability.
 - `Finding`: one hit (which rule, which file, which line, a snippet).
 - `SourceFile`: a file loaded once and shared with every scanner. `line_of(offset)` turns a regex match position into a line and column.
 
@@ -45,9 +45,13 @@ One idea holds it together: **a scanner turns a file into a list of `Finding`s.*
 | `agents.py` | Parsing JSON configs as data instead of regex; decoding invisible Unicode tag characters (`chr(ord(c) - 0xE0000)`) |
 | `crypto.py` | `finish()`: collecting state across files to build an inventory |
 
-## 4. `engine.py`: suppressions
+## 4. `engine.py`: suppressions and the audit trail
 
-`atlas: ignore` comments are read per file into a table of `line → rule ids`. A comment on its own line protects the next line. `atlas: ignore-file` skips the file but the file is still named in the report, because a silent skip would be a perfect hiding place for malicious code.
+`atlas: ignore` comments are read per file into a table of `line → rule ids`. A comment on its own line protects the next line.
+
+The key design rule: **anything that hides a finding must leave a trace.** Silenced findings are kept in `result.suppressed_findings`, `ignore-file` files in `result.skipped_files`, and the walker counts how many files each ignore pattern removed (`result.exclusions`). The reports print all of it. A silent skip would be a perfect hiding place for malicious code.
+
+The engine also wraps every scanner call in `try/except`. If one scanner crashes on a strange file, the others still run, and the error records only the exception *type*, never its message, because the message could contain file content, including secrets.
 
 ## 5. `reporters.py`: output formats
 
@@ -73,7 +77,9 @@ Say you want to flag Python's `tempfile.mktemp()` (it has a race condition).
        assert scan({"b.py": "fd, p = tempfile.mkstemp()\n"}) == []
    ```
 
-3. Regenerate the rules doc and run the tests:
+3. If the rule is about a risky *setting* rather than an exploitable flaw, add its ID to `MISCONFIGURATION_IDS` in `models.py`. (`mktemp` is a real flaw, so leave it as a vulnerability.)
+
+4. Regenerate the rules doc and run the tests:
 
    ```bash
    python tools/gen_rules_doc.py
@@ -82,6 +88,10 @@ Say you want to flag Python's `tempfile.mktemp()` (it has a race condition).
 
 Always test the safe version too. A rule that fires on safe code teaches people to ignore the tool.
 
-## Dogfooding
+## Dogfooding and outside review
 
-CI scans this repo with its own GitHub Action. The first run found a real bug: the `pyproject.toml` parser treated `authors` and `keywords` lists as dependencies. That's the value of running your tool on yourself.
+CI scans this repo with its own GitHub Action. The first run found a real bug: the `pyproject.toml` parser treated `authors` and `keywords` lists as dependencies.
+
+An external audit of v0.1.0 found more: unpinned Actions, raw shell arguments in the Action, quantum "inventory" mixed in with real vulnerabilities, and registry outages that could look like missing packages. All were fixed in v0.2.0 ([CHANGELOG.md](../CHANGELOG.md)). Testing the fixes found two more bugs: `**/` ignore patterns didn't match at the top level, and an exclude of `*` produced a misleading "clean" result.
+
+A trick worth stealing: after writing a test that passes first time, break the code on purpose and check the test fails. The masking tests were verified this way.

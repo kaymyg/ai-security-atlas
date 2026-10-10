@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -30,17 +31,21 @@ TYPOSQUAT = Rule("SUP001", "Possible typosquat of a popular package", Severity.H
 MISSING = Rule("SUP002", "Package does not exist on the registry (possible AI hallucination)", Severity.HIGH, C,
                "Don't install it. The name was probably invented by an AI; an attacker could register it.",
                "CWE-1357")
-NEW_PKG = Rule("SUP003", "Very new package (published in the last 30 days)", Severity.MEDIUM, C,
-               "New packages with AI-plausible names are a common slopsquatting trap. Verify the publisher.",
-               "CWE-1357")
+NEW_PKG = Rule("SUP003", "Recently published package (last 30 days)", Severity.LOW, C,
+               "New isn't the same as malicious, but slopsquatting packages are always new. Check the publisher, "
+               "repository link and download count before trusting it.")
 UNPINNED = Rule("SUP004", "Dependency with no version constraint", Severity.LOW, C,
                 "Pin a version (and use a lock file) so a hijacked release can't slip in silently.", "CWE-1104")
 URL_DEP = Rule("SUP005", "Dependency installed straight from a URL or git", Severity.MEDIUM, C,
                "Prefer a published, pinned release. If you must use git, pin to a commit SHA.", "CWE-494")
 PIPE_SH = Rule("SUP006", "Remote script piped straight into a shell", Severity.MEDIUM, C,
                "Download, verify a checksum or signature, then run.", "CWE-494")
-ACTION_PIN = Rule("SUP007", "Third-party GitHub Action not pinned to a commit SHA", Severity.LOW, C,
-                  "Pin to the full 40-character commit SHA (tags can be moved by an attacker).", "CWE-829")
+UNCHECKED = Rule("SUP008", "Packages that could not be checked online", Severity.INFO, C,
+                 "The registry didn't answer (offline, timeout or rate limit). These packages are unknown, not "
+                 "safe: re-run with --online later.")
+ACTION_PIN = Rule("SUP007", "GitHub Action not pinned to a commit SHA", Severity.LOW, C,
+                  "Pin to the full 40-character commit SHA with a '# vX.Y.Z' comment (tags and branches can be "
+                  "moved), and let Dependabot keep the pins current.", "CWE-829")
 
 NEW_PACKAGE_DAYS = 30
 
@@ -171,28 +176,46 @@ def _find_line(src: SourceFile, needle: str) -> int:
 Fetcher = Callable[[str], Optional[dict]]
 
 
-def http_json(url: str) -> Optional[dict]:
-    """Return parsed JSON, None for 404, or raise for other failures."""
+RETRYABLE = {429, 500, 502, 503, 504}
+
+
+def http_json(url: str, retries: int = 1, sleep: Callable[[float], None] = time.sleep) -> Optional[dict]:
+    """Return parsed JSON, or None for a definite 404.
+
+    Anything else (timeouts, rate limits, server errors) raises, so the caller
+    records the package as *unknown* rather than *missing*.
+    """
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "ai-security-atlas"})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            return None
-        raise
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return None
+            if e.code not in RETRYABLE or attempt == retries:
+                raise
+            wait = e.headers.get("Retry-After", "2") if e.headers else "2"
+            sleep(min(float(wait) if str(wait).isdigit() else 2.0, 10.0))
+    raise RuntimeError("unreachable")  # pragma: no cover
 
 
 class Registry:
+    MAX_FAILURES = 3  # after this many failures in a row, stop asking (we're probably offline)
+
     def __init__(self, fetch: Fetcher = http_json) -> None:
         self.fetch = fetch
         self.cache: dict[tuple[str, str], tuple[bool, Optional[datetime]] | None] = {}
+        self.failures_in_a_row = 0
 
     def lookup(self, eco: str, name: str) -> tuple[bool, Optional[datetime]] | None:
-        """(exists, first_published) or None when the registry can't be reached."""
+        """(exists, first_published), or None when the answer is unknown."""
         key = (eco, name)
         if key in self.cache:
             return self.cache[key]
+        if self.failures_in_a_row >= self.MAX_FAILURES:
+            self.cache[key] = None
+            return None
         try:
             if eco == "pypi":
                 data = self.fetch(f"https://pypi.org/pypi/{urllib.parse.quote(name)}/json")
@@ -201,8 +224,10 @@ class Registry:
                 data = self.fetch(f"https://registry.npmjs.org/{urllib.parse.quote(name, safe='@')}")
                 created = (data or {}).get("time", {}).get("created") if data else None
                 result = (False, None) if data is None else (True, _iso(created))
+            self.failures_in_a_row = 0
         except Exception:
             result = None
+            self.failures_in_a_row += 1
         self.cache[key] = result
         return result
 
@@ -228,13 +253,14 @@ def _pypi_created(data: dict) -> Optional[datetime]:
 class DependencyScanner(Scanner):
     name = "supply-chain"
     category = C
-    rules = [TYPOSQUAT, MISSING, NEW_PKG, UNPINNED, URL_DEP, PIPE_SH, ACTION_PIN]
+    rules = [TYPOSQUAT, MISSING, NEW_PKG, UNPINNED, URL_DEP, PIPE_SH, ACTION_PIN, UNCHECKED]
 
     def __init__(self, online: bool = False, registry: Registry | None = None,
                  now: Callable[[], datetime] = lambda: datetime.now(timezone.utc)) -> None:
         self.online = online
         self.registry = registry or Registry()
         self.now = now
+        self.unchecked: list[str] = []
 
     def applies(self, src: SourceFile) -> bool:
         return True
@@ -254,10 +280,11 @@ class DependencyScanner(Scanner):
                 line, col = src.line_of(m.start())
                 yield Finding(PIPE_SH, src.path, line, col, src.snippet(line))
 
-        if "/.github/workflows/" in "/" + src.path and name.endswith((".yml", ".yaml")):
+        if ("/.github/workflows/" in "/" + src.path and name.endswith((".yml", ".yaml"))) or \
+                name in ("action.yml", "action.yaml"):
             for m in re.finditer(r"uses:\s*[\"']?([\w.-]+)/([\w./-]+)@([\w.\-/]+)", src.text):
-                owner, ref = m.group(1), m.group(3)
-                if owner in ("actions", "github") or re.fullmatch(r"[0-9a-f]{40}", ref):
+                ref = m.group(3)
+                if re.fullmatch(r"[0-9a-f]{40}", ref):
                     continue
                 line, col = src.line_of(m.start())
                 yield Finding(ACTION_PIN, src.path, line, col, src.snippet(line))
@@ -280,9 +307,19 @@ class DependencyScanner(Scanner):
             if self.online:
                 yield from self._online(src, eco, raw_name, name, line)
 
+    def finish(self) -> Iterable[Finding]:
+        if not self.unchecked:
+            return []
+        names = sorted(set(self.unchecked))
+        self.unchecked = []
+        shown = ", ".join(names[:10]) + (f" +{len(names) - 10} more" if len(names) > 10 else "")
+        return [Finding(UNCHECKED, ".", 1, shown, message=f"{len(names)} package(s) could not be checked: {shown}",
+                        extra={"packages": names})]
+
     def _online(self, src, eco, raw_name, name, line) -> Iterable[Finding]:
         info = self.registry.lookup(eco, name)
         if info is None:
+            self.unchecked.append(f"{eco}:{raw_name}")
             return
         exists, created = info
         if not exists:

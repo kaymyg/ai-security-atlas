@@ -20,4 +20,6 @@ pytest -q
 - `pytest -q` passes.
 - If you changed rules: `python tools/gen_rules_doc.py`.
 - `atlas scan .` is still clean.
+- If you changed what a rule can or can't detect, update [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md).
+- New claims in the threat map need a numbered source with type, publication date, what you verified and when.
 - Never commit a real-looking secret, even a fake one. Build test keys at run time (see `tests/conftest.py::fake`).
