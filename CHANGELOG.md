@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Hugging Face web demo** (`huggingface/space/`): paste code or upload files and get a scan report in the browser. Input is only scanned, never executed; file names are sanitised, sizes are capped, nothing is stored, and echoed text is escaped.
+- **Benchmark dataset** for Hugging Face: one row per labelled case (365 rows) with ground truth and the scanner's result. Rows use placeholders instead of key-shaped strings or invisible characters.
+- `.github/workflows/huggingface.yml` publishes both on every push to `main` once an `HF_TOKEN` secret is set (`docs/HUGGINGFACE.md`), and checks the benchmark first.
+- CI tests the web app with the same Gradio version the Space runs.
+
 ## v0.3.0 (2026-10-10): accuracy benchmark
 
 ### Added

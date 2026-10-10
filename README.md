@@ -4,6 +4,8 @@
 
 The scanner complements established security tools. It does not replace comprehensive static analysis (SAST), history-aware secret scanning, penetration testing, runtime agent controls, enterprise DLP or deepfake detection. See [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) for exactly what it can and can't see.
 
+**Try it in your browser:** [web demo on Hugging Face](https://huggingface.co/spaces/Sahek/ai-security-atlas) · **Benchmark dataset:** [Sahek/ai-security-atlas-benchmark](https://huggingface.co/datasets/Sahek/ai-security-atlas-benchmark)
+
 The repo has two related but separate deliverables:
 
 - **The atlas** ([docs/THREAT_MAP.md](docs/THREAT_MAP.md)): five emerging AI security problem areas, what established sources say about each, and which parts can be checked in code. Every claim cites a numbered source with what was verified and when; unconfirmed vendor claims are kept apart as leads to verify.
@@ -40,7 +42,7 @@ Every rule is graded against a [labelled benchmark](benchmark/) of 300+ hand-wri
 | Recall (unsafe cases caught) | 85% | **94%** |
 | False alarms / misses | 23 / 31 | **12 / 13** |
 
-Per-rule scores: [benchmark/RESULTS.md](benchmark/RESULTS.md). The weakest areas, so you know where to double-check:
+Per-rule scores: [benchmark/RESULTS.md](benchmark/RESULTS.md). The cases are also published as a [Hugging Face dataset](https://huggingface.co/datasets/Sahek/ai-security-atlas-benchmark) so other scanners can be tested against them. The weakest areas, so you know where to double-check:
 
 - **Anything that needs data flow.** A value built on one line and used on another (`query = f"…"` then `db.execute(query)`) isn't caught.
 - **Poisoned agent rules files (AGT030)** are keyword-based: harmless phrases like "ignore previous instructions from older versions" can trigger it, and cleverly worded attacks can slip past.
@@ -166,6 +168,7 @@ src/atlas_scan/
     crypto.py     PQC*  weak crypto and post-quantum inventory
 examples/         deliberately vulnerable demo app
 benchmark/        labelled accuracy cases, runner and RESULTS.md
+huggingface/      web demo (Space); published with tools/build_hf.py + publish_hf.py (docs/HUGGINGFACE.md)
 tests/            pytest suite (includes the benchmark check)
 docs/             threat map, rules, limitations, how it works
 ```
