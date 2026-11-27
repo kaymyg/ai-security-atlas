@@ -53,7 +53,7 @@ These numbers come from deliberately tricky cases, not from real-world repositor
 
 ## Quick start
 
-Needs Python 3.9 or newer. No other dependencies.
+Needs Python 3.10 or newer. No other dependencies.
 
 ```bash
 pip install git+https://github.com/kaymyg/ai-security-atlas@v0.3.0
@@ -191,3 +191,7 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each release. Ideas and pul
 ## License
 
 MIT
+
+## Contributing
+
+Looking for something to work on? See [HELP_WANTED.md](HELP_WANTED.md), and [CONTRIBUTING.md](CONTRIBUTING.md) for setup.
