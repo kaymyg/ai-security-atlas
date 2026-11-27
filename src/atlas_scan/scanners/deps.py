@@ -231,9 +231,15 @@ class Registry:
         if self.failures_in_a_row >= self.MAX_FAILURES:
             self.cache[key] = None
             return None
+        if not _valid_registry_name(eco, name):
+            # A name no registry can hold (for example "x/../requests" or "..")
+            # could otherwise be steered onto a different registry URL and come
+            # back as "exists". Treat it as not found, never as present.
+            self.cache[key] = (False, None)
+            return self.cache[key]
         try:
             if eco == "pypi":
-                data = self.fetch(f"https://pypi.org/pypi/{urllib.parse.quote(name)}/json")
+                data = self.fetch(f"https://pypi.org/pypi/{urllib.parse.quote(name, safe='')}/json")
                 result = (False, None) if data is None else (True, _pypi_created(data))
             else:
                 data = self.fetch(f"https://registry.npmjs.org/{urllib.parse.quote(name, safe='@')}")
@@ -245,6 +251,19 @@ class Registry:
             self.failures_in_a_row += 1
         self.cache[key] = result
         return result
+
+
+# PEP 508 project names, and npm package names (optionally @scope/), as the
+# registries themselves accept them. Anything else never reaches the network.
+_PYPI_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
+_NPM_NAME = re.compile(r"^(?:@[a-z0-9~-][a-z0-9._~-]*/)?[a-z0-9~-][a-z0-9._~-]*$", re.I)
+
+
+def _valid_registry_name(eco: str, name: str) -> bool:
+    if not name or len(name) > 214:
+        return False
+    pattern = _PYPI_NAME if eco == "pypi" else _NPM_NAME
+    return bool(pattern.match(name))
 
 
 def _iso(value: Optional[str]) -> Optional[datetime]:

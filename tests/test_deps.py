@@ -91,3 +91,32 @@ def test_online_check_survives_network_errors(tmp_path):
     assert [f.rule.id for f in findings] == ["SUP008"]
     assert findings[0].extra["packages"] == ["pypi:flask", "pypi:rich"]
     assert findings[0].rule.kind == "inventory"
+
+
+def test_registry_rejects_names_that_could_rewrite_the_url():
+    """REGRESSION: names were only partly escaped, so a crafted manifest entry
+    such as "evil/../requests" or ".." could resolve to a different registry
+    URL and be reported as an existing package, hiding a fake dependency."""
+    seen = []
+
+    def fetch(url):
+        seen.append(url)
+        return {"releases": {}, "time": {}}  # any URL "exists"
+
+    reg = Registry(fetch=fetch)
+    for eco, name in [("npm", ".."), ("npm", "."), ("npm", "a/../lodash"),
+                      ("pypi", "evil/../requests"), ("pypi", "x?y"), ("pypi", "")]:
+        assert reg.lookup(eco, name) == (False, None), (eco, name)
+    assert seen == [], "invalid names must never reach the network"
+
+    assert reg.lookup("npm", "@types/node")[0] is True
+    assert seen[-1] == "https://registry.npmjs.org/@types%2Fnode"
+    assert reg.lookup("pypi", "requests")[0] is True
+    assert seen[-1] == "https://pypi.org/pypi/requests/json"
+
+
+def test_crafted_package_json_name_is_reported_missing(tmp_path):
+    (tmp_path / "package.json").write_text('{"dependencies": {"..": "1.0.0"}}')
+    scanner = DependencyScanner(online=True, registry=Registry(fetch=lambda url: {"time": {}}))
+    findings = scan_path(str(tmp_path), scanners=[scanner]).findings
+    assert ("SUP002", "..") in {(f.rule.id, f.extra.get("package")) for f in findings}

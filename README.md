@@ -191,3 +191,7 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each release. Ideas and pul
 ## License
 
 MIT
+
+## Contributing
+
+Looking for something to work on? See [HELP_WANTED.md](HELP_WANTED.md), and [CONTRIBUTING.md](CONTRIBUTING.md) for setup.
